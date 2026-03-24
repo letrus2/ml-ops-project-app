@@ -1,7 +1,7 @@
 
 1. Download test data for predictions from this repo (you will need it for the next step):
-``test_150rows.csv``
-``test_4krows.csv``
+`test_150rows.csv`
+`test_4krows.csv`
 
 2. Open the app:
 https://ml-ops-project-app-pcu4qxslvgyjnlwmpi2tms.streamlit.app/
