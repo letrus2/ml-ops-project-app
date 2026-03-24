@@ -5,15 +5,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import requests
+import io
 
 from pathlib import Path
 
 # --- Defs
-
+@st.cache_data()
 def get_health():
     '''This function checks the health of the Render service for predictions.'''
     return requests.get(url = 'https://ml-ops-69kd.onrender.com/health')
 
+@st.cache_data()
 def get_predictions(uploaded_file):
     '''
     This function is activated by the 'Get Predictions!' button.
@@ -53,8 +55,16 @@ uploaded_file = st.file_uploader('Choose formatted file to get predictions', typ
 
 if uploaded_file is not None: # need for handle error, when there is not file
     '#### Your dataframe for predictions'
-    uploaded_dataframe = pd.read_csv(uploaded_file)
-    st.write(uploaded_dataframe)
+
+    file_bytes = uploaded_file.getvalue()
+    uploaded_dataframe = pd.read_csv(io.BytesIO(file_bytes))
+
+    # Toggle: uploaded dataframe
+    show_table1 = st.toggle('Show your dataframe for predictions', value=True)
+    table_box1 = st.empty()
+    with table_box1:
+        if show_table1:
+            st.write(uploaded_dataframe)
 
 
 predictions_result = st.container()
@@ -70,7 +80,7 @@ if uploaded_file is not None:
                 'labels': 'Fraud'
             })
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         col1.metric('Number of observations', len(predictions_dataframe))
         col2.metric('Number of frauds', len(predictions_dataframe[predictions_dataframe['Fraud']==1]))
@@ -79,31 +89,39 @@ if uploaded_file is not None:
         col3.metric('Mean probability of fraud', f'{mean_probability:.2f}%')
         df_merge = pd.concat([uploaded_dataframe, predictions_dataframe], axis='columns')
 
+        # Slider
+        threshold_pct = st.slider('Fraud threshold, %', min_value = 0.0, max_value=100.0, value=0.0, step = 0.05)
+        threshold = threshold_pct / 100
+        # Slice visuals
+        sliced_df = df_merge[df_merge['Probability'] >= threshold]
+        # new card #4
+        col4.metric('Above threshold', len(sliced_df))
+
         # st.caption(':gray[Sorted by Probability: highest-risk rows first.]')
         st.write('Sorted by Probability: highest-risk rows first.')
-        st.dataframe(df_merge[['id', 'Probability', 'Transaction_Amount', 'Fraud']].sort_values(by='Probability', ascending=False),
-                      hide_index = True)
+
+        # transactions table toggle
+        show_table2 = st.toggle('Show transactions above threshold table.', value = False)
+        table_box2 = st.empty()
+        with table_box2:
+            if show_table2:
+                st.dataframe(sliced_df[['id', 'Probability', 'Transaction_Amount', 'Fraud']].sort_values(by='Probability', ascending=False),
+                            hide_index = True)
+   
 
         '##### Transaction Amount vs Probability'
-        st.caption('High-probability, high-amount points in the top-right warrant manual review')
+        st.caption('High-probability, high-amount points in the top-right warrant manual review. Points above threshold are red.')
+        # st.caption('Only points above the selected threshold are shown')
+        df_plot = df_merge.copy()
+        df_plot['RiskFlag'] = np.where(df_plot['Probability'] >= threshold, "#ff4b4b", "#6092b9")
         st.scatter_chart(
-            data = df_merge,
+            data = df_plot,
             x = 'Probability',
-            y = 'Transaction_Amount'
+            y = 'Transaction_Amount',
+            color = 'RiskFlag'
         )
         # st.pyplot(plt.scatter(predictions_dataframe['Probability'], uploaded_dataframe['Transaction_Amount']))
         # st.write(get_predictions(uploaded_dataframe).json())
-
-
-# df = pd.DataFrame(
-#     np.random.rand(10,20),
-#     columns =('col %d' % i for i in range(20))
-# )
-# path = Path(__file__).parents[1] / 'data/train.csv'
-# path
-# example_dataframe = pd.read_csv(path)
-# example_dataframe = example_dataframe.drop(['id','IsFraud','Time'], axis=1)
-# example_dataframe[:5]
 
 example_dataframe2 = pd.DataFrame(
     # np.random.randn(5,28),
@@ -125,23 +143,18 @@ with example_dataframe:
         '### Example of dataframe for attachment'
         st.dataframe(example_dataframe2)
 
-
-
-
-
-
-'### Power BI dashboard link'
-'Some train dataset metrics'
-st.markdown(
+with st.expander('### Interactive Power BI dashboard'):
+    'Some metrics from the train dataset'
+    st.markdown(
+        '''
+    <iframe title="sample pbi report" width="672" height="440"
+    src="https://app.powerbi.com/view?r=eyJrIjoiOGMyZmJiMWQtYTE1Ni00Njc2LThlOGEtN2NiZmZhMDY0NzA0IiwidCI6IjdhZjZjNzMyLTAwMDQtNDhiMC1iMTM0LTQ4ZmVjNmE5ZTk3NSIsImMiOjl9"
+    frameborder="0" allowFullScreen="true">
+    </iframe>
     '''
-<iframe title="sample pbi report" width="700" height="500"
-src="https://app.powerbi.com/view?r=eyJrIjoiOGMyZmJiMWQtYTE1Ni00Njc2LThlOGEtN2NiZmZhMDY0NzA0IiwidCI6IjdhZjZjNzMyLTAwMDQtNDhiMC1iMTM0LTQ4ZmVjNmE5ZTk3NSIsImMiOjl9"
-frameborder="0" allowFullScreen="true">
-</iframe>
-'''
 
-, unsafe_allow_html=True
+    , unsafe_allow_html=True
 
-)
+    )
 
-url = 'https://app.powerbi.com/view?r=eyJrIjoiOGMyZmJiMWQtYTE1Ni00Njc2LThlOGEtN2NiZmZhMDY0NzA0IiwidCI6IjdhZjZjNzMyLTAwMDQtNDhiMC1iMTM0LTQ4ZmVjNmE5ZTk3NSIsImMiOjl9'
+    url = 'https://app.powerbi.com/view?r=eyJrIjoiOGMyZmJiMWQtYTE1Ni00Njc2LThlOGEtN2NiZmZhMDY0NzA0IiwidCI6IjdhZjZjNzMyLTAwMDQtNDhiMC1iMTM0LTQ4ZmVjNmE5ZTk3NSIsImMiOjl9'
