@@ -143,7 +143,7 @@ with example_dataframe:
         '### Example of dataframe for attachment'
         st.dataframe(example_dataframe2)
 
-with st.expander('### Interactive Power BI dashboard'):
+with st.expander('Interactive Power BI dashboard'):
     'Some metrics from the train dataset'
     st.markdown(
         '''
